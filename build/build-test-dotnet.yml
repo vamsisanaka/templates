@@ -1,0 +1,31 @@
+steps:
+  - bash: |
+      echo -e "\n" &gt;&gt; \$(WorkingDir)/nuget.config
+      sed -i "s||<span><span style="color: rgb(150, 34, 73); font-weight: bold;">&lt;packagesourcecredentials&gt;</span><span style="color: black; font-weight: normal;">\n\t\n\t\t\n\t\t\n\t\n</span></span>\n|" \$(WorkingDir)/nuget.config
+    displayName: 'Add Credentials to Nuget Config'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Dotnet Restore'
+    condition: succeeded()
+    inputs:
+      command: 'restore'
+      projects: '\$(WorkingDir)/**/*.csproj'
+      feedsToUse: 'select'
+      includeNuGetOrg: true
+      vstsFeed: '\$(PRIVATE_NUGET_FEED)'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Dotnet Build'
+    inputs:
+      command: 'build'
+      projects: '\$(WorkingDir)'
+      arguments: '--configuration debug'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Dotnet Test'
+    condition: eq(variables['dotnetUnitTest.enable'], 'true')
+    inputs:
+      command: 'test'
+      projects: '\$(WorkingDir)'
+      arguments: '--configuration debug /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura --no-build'
+      testRunTitle: '\$(date +%Y%m%d)-\$(Build.DefinitionName)-Unit Test'

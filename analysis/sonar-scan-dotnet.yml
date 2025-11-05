@@ -1,0 +1,8 @@
+steps:
+  - task: SonarQubePrepare@5
+    displayName: 'Prepare SonarQube Analysis'
+    condition: eq(variables['sonarqube.enableScan'], 'true')
+    inputs:
+      SonarQube: '\$(SonarConnection)'
+      scannerMode: 'MSBuild'
+      projectKey: '\$(SonarProject)'

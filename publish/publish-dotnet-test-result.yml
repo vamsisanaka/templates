@@ -1,0 +1,9 @@
+steps:
+  - task: PublishTestResults@2
+    displayName: 'Publish Dotnet Test Result'
+    condition: eq(variables['dotnetUnitTest.enable'], 'true')
+    inputs:
+      testResultsFormat: 'VSTest'
+      testResultsFiles: '\$(Agent.TempDirectory)/**/*.trx'
+      searchFolder: 
+      testRunTitle: '\$(Build.Repository.Name) unit test - \$(Build.DefinitionName)'

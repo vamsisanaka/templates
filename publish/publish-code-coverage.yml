@@ -1,0 +1,9 @@
+steps:
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish Code Coverage'
+    condition: or(eq(variables['dotnetUnitTest.enable'], 'true'), eq(variables['angularTest.enable'], 'true'))
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '\$(WorkingDir)/coverage/cobertura-coverage.xml'
+      pathToSources: '\$(WorkingDir)'
+      failIfCoverageEmpty: false

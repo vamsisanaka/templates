@@ -1,0 +1,79 @@
+# Complete MongoDB Pipeline Template
+# Includes: Setup, Validation, Copy, Publish stages
+
+parameters:
+  - name: workingDirectory
+    type: string
+  - name: nodeVersion
+    type: string
+    default: '16.x'
+  - name: artifactName
+    type: string
+    default: 'MongoDbArtifacts'
+  - name: agentPool
+    type: string
+    default: 'ubuntu-latest'
+
+jobs:
+  - job: MongoDBBuild
+    displayName: 'MongoDB Build'
+    pool:
+      vmImage: ${{ parameters.agentPool }}
+   
+    steps:
+      # Install Node.js
+      - task: NodeTool@0
+        displayName: 'Install Node JS Tool'
+        inputs:
+          versionSpec: '${{ parameters.nodeVersion }}'
+
+      # Install JsonLint
+      - task: CmdLine@2
+        displayName: 'Install JsonLint'
+        inputs:
+          script: 'npm install -g jsonlint'
+
+      # Linting on Collections
+      - task: CmdLine@2
+        displayName: 'Linting on Collections'
+        inputs:
+          script: |
+            echo "******************** LOOKING FOR *.json FILES in WorkingDir ********************************"
+            cd ${{ parameters.workingDirectory }}
+            for file in *.json; do
+              echo "Performing syntax validation on $file"
+              jsonlint "$file" -q
+            done
+
+      # Linting on Indexes
+      - task: CmdLine@2
+        displayName: 'Linting on Indexes'
+        inputs:
+          script: |
+            echo "******************** LOOKING FOR *.json FILES in indexes directory ********************************"
+            cd ${{ parameters.workingDirectory }}/indexes
+            for file in *.json; do
+              echo "Performing syntax validation on $file"
+              jsonlint "$file" -q
+            done
+
+      # Copy Files to Staging Directory
+      - task: CopyFiles@2
+        displayName: 'Copy collections to staging directory'
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        inputs:
+          SourceFolder: '${{ parameters.workingDirectory }}'
+          Contents: |
+            **/*-collections.yml
+            **/workflow.json
+          TargetFolder: '$(Build.ArtifactStagingDirectory)/mongodb'
+          OverWrite: true
+
+      # Publish Build Artifacts
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Mongo DB Artifacts'
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)/mongodb'
+          ArtifactName: '${{ parameters.artifactName }}'
+          publishLocation: 'Container'

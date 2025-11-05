@@ -1,0 +1,47 @@
+steps:
+  - bash: |
+      if [ -d \$(Build.ArtifactStagingDirectory)/veracode ]
+      then
+        rm -rf \$(Build.ArtifactStagingDirectory)/veracode
+      fi
+    displayName: 'Remove veracode dir before scan'
+    condition: succeeded()
+
+  - task: UseDotNet@2
+    displayName: 'Install .NET Core SDK'
+    inputs:
+      version: 6.x
+      performMultiLevelLookup: true
+      includePreviewVersions: true
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Dotnet Restore'
+    condition: succeeded()
+    inputs:
+      command: 'restore'
+      projects: '\$(WorkingDir)/**/*\$(PROJECT_NAME).csproj'
+      feedsToUse: 'select'
+      includeNuGetOrg: true
+      vstsFeed: '\$(PRIVATE_NUGET_FEED)'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet publish'
+    condition: succeeded()
+    inputs:
+      command: 'publish'
+      publishWebProjects: false
+      projects: '\$(WorkingDir)/**/*\$(PROJECT_NAME).csproj'
+      arguments: '-c debug -o \$(Build.ArtifactStagingDirectory)/veracode'
+      zipAfterPublish: false
+      modifyOutputPath: false
+      workingDirectory: '\$(WorkingDir)'
+
+  - task: ArchiveFiles@2
+    displayName: 'Prepare upload artifact'
+    condition: succeeded()
+    continueOnError: true
+    inputs:
+      rootFolderOrFile: '\$(Build.ArtifactStagingDirectory)/veracode'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '\$(Build.ArtifactStagingDirectory)/\$(API_NAME)_\$(Build.BuildId).zip'

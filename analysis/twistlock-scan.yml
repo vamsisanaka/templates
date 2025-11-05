@@ -1,0 +1,20 @@
+steps:
+  - task: Bash@3
+    displayName: 'Vulnerability Scan'
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['twistlock.enableScan'], 'true'))
+    inputs:
+      targetType: 'inline'
+      script: |
+        docker pull registry.twistlock.com/twistlock/scanner:latest
+        
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -e TL_CONSOLE=\$(TWISTLOCK_CONSOLE) \
+          -e TL_USER=\$(TWISTLOCK_USER) \
+          -e TL_PASS=\$(TWISTLOCK_PASSWORD) \
+          registry.twistlock.com/twistlock/scanner:latest \
+          scan \
+          --address \$(TWISTLOCK_CONSOLE) \
+          --user \$(TWISTLOCK_USER) \
+          --password \$(TWISTLOCK_PASSWORD) \
+          \$(IMAGE_NAME):\$(RELEASE_VERSION)-\$(Build.BuildId)

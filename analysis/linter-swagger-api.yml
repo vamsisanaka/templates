@@ -1,0 +1,43 @@
+steps:
+  - task: Bash@3
+    displayName: 'Swagger File Check'
+    condition: eq(variables['swaggerLinter.enable'], 'true')
+    inputs:
+      targetType: 'inline'
+      script: |
+        cd \$(WorkingDir)
+        if [ -f \$(WorkingDir)/swagger.json ]
+        then
+          SwaggerFileCheck="true"
+          echo "##vso[task.setvariable variable=SwaggerFileCheck]\$SwaggerFileCheck"
+          echo "swagger.json file exist"
+        else
+          SwaggerFileCheck="false"
+          echo "##vso[task.setvariable variable=SwaggerFileCheck]\$SwaggerFileCheck"
+          echo "swagger.json file not exist"
+        fi
+
+  - task: Npm@1
+    displayName: 'Install Spectral'
+    condition: and(eq(variables['swaggerLinter.enable'], 'true'), eq(variables['SwaggerFileCheck'], 'true'))
+    inputs:
+      command: 'custom'
+      customCommand: 'install -g @stoplight/spectral-cli'
+
+  - task: Bash@3
+    displayName: 'Swagger API Analysis'
+    condition: and(eq(variables['swaggerLinter.enable'], 'true'), eq(variables['SwaggerFileCheck'], 'true'))
+    inputs:
+      targetType: 'inline'
+      script: |
+        cd \$(WorkingDir)
+        spectral lint swagger.json --format junit --output \$(Build.ArtifactStagingDirectory)/swagger-lint-results.xml
+    continueOnError: true
+
+  - task: PublishTestResults@2
+    displayName: 'Publish Swagger Lint Results'
+    condition: and(eq(variables['swaggerLinter.enable'], 'true'), eq(variables['SwaggerFileCheck'], 'true'))
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '\$(Build.ArtifactStagingDirectory)/swagger-lint-results.xml'
+      testRunTitle: 'Swagger API Linter Results'

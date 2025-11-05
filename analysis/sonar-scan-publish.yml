@@ -1,0 +1,10 @@
+steps:
+  - task: SonarQubeAnalyze@5
+    displayName: 'Run SonarQube Analysis'
+    condition: and(succeeded(), eq(variables['sonarqube.enableScan'], 'true'))
+
+  - task: SonarQubePublish@5
+    displayName: 'Publish SonarQube Quality Gate Result'
+    condition: and(succeeded(), eq(variables['sonarqube.enableScan'], 'true'))
+    inputs:
+      pollingTimeoutSec: '300'

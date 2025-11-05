@@ -1,0 +1,18 @@
+steps:
+  - task: Bash@3
+    displayName: 'Install Dotnet Code Coverage Tool'
+    condition: eq(variables['dotnetUnitTest.enable'], 'true')
+    inputs:
+      targetType: 'inline'
+      script: |
+        cd \$(WorkingDir)
+        dotnet tool install --ignore-failed-sources --tool-path . dotnet-reportgenerator-globaltool
+        ./reportgenerator --reports:**/coverage.cobertura.xml --targetdir:\$(WorkingDir)/codecoverage --reporttypes:'Cobertura'
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish Code Coverage Result'
+    condition: eq(variables['dotnetUnitTest.enable'], 'true')
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '\$(WorkingDir)/codecoverage/Cobertura.xml'
+      pathToSources: '\$(WorkingDir)'

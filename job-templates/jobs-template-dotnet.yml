@@ -1,0 +1,37 @@
+jobs:
+  - job: BuildTestAnalyze
+    pool:
+      name: \$(AGENT_POOL)
+      demands: java
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    steps:
+      - template: ../analysis/sonar-scan-dotnet.yml
+      - template: ../build/build-test-dotnet.yml
+      - template: ../other/install-publish-dotnet-code-coverage.yml
+      - template: ../publish/publish-dotnet-test-result.yml
+      - template: ../analysis/linter-swagger-api.yml
+      - template: ../analysis/sonar-scan-publish.yml
+
+  - job: PRBuild
+    pool: \$(AGENT_POOL)
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    steps:
+      - template: ../analysis/sonar-scan-dotnet.yml
+      - template: ../build/build-test-dotnet.yml
+      - template: ../other/install-publish-dotnet-code-coverage.yml
+      - template: ../publish/publish-dotnet-test-result.yml
+      - template: ../analysis/linter-swagger-api.yml
+      - template: ../analysis/sonar-scan-publish.yml
+
+  - job: ImageBuild
+    pool: \$(AGENT_POOL)
+    steps:
+      - template: ../package/build-image-buildkit.yml
+      - template: ../analysis/twistlock-scan.yml
+      - template: ../publish/publish-build-artifacts.yml
+
+  - job: VeracodeScan
+    pool: \$(AGENT_POOL)
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    steps:
+      - template: ../analysis/veracode-scan-dotnet.yml

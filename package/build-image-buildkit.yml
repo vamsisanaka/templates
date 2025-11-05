@@ -1,0 +1,71 @@
+steps:
+  - task: Bash@3
+    displayName: 'ImageTagging'
+    inputs:
+      targetType: 'inline'
+      script: |
+        IMAGE_NAME=\$(DockerRegistryServer)/\$(DockerRegistryPath)/\$(Build.DefinitionName)
+        echo "##vso[task.setvariable variable=IMAGE_NAME]\$IMAGE_NAME"
+        if [[ "\$(Build.SourceBranch)" == "refs/heads/release."* ]]
+        then
+          RELEASE_VERSION=\$(releaseVersion)
+          echo "##vso[task.setvariable variable=RELEASE_VERSION]\$RELEASE_VERSION"
+        else
+          RELEASE_VERSION=dev
+          echo "##vso[task.setvariable variable=RELEASE_VERSION]\$RELEASE_VERSION"
+        fi
+        echo "Image Name: \$IMAGE_NAME"
+        echo "Image Tag: \$RELEASE_VERSION-\$(Build.BuildId)"
+
+  - task: Bash@3
+    displayName: 'BuildImage'
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    inputs:
+      targetType: 'inline'
+      script: |
+        cd \$(WorkingDir)
+        export DOCKER_BUILDKIT=1
+        
+        if [ -f \$(WorkingDir)/nuget.config ]
+        then
+          docker build \
+            --build-arg NUGET_PAT=\$(NUGET_FEED_PAT) \
+            --cache-from \$(IMAGE_NAME):latest \
+            --tag \$(IMAGE_NAME):\$(RELEASE_VERSION)-\$(Build.BuildId) \
+            --tag \$(IMAGE_NAME):latest \
+            -f Dockerfile \
+            .
+        else
+          docker build \
+            --cache-from \$(IMAGE_NAME):latest \
+            --tag \$(IMAGE_NAME):\$(RELEASE_VERSION)-\$(Build.BuildId) \
+            --tag \$(IMAGE_NAME):latest \
+            -f Dockerfile \
+            .
+        fi
+        
+        docker push \$(IMAGE_NAME):\$(RELEASE_VERSION)-\$(Build.BuildId)
+        docker push \$(IMAGE_NAME):latest
+
+  - task: Bash@3
+    displayName: 'PRBuildImage'
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    inputs:
+      targetType: 'inline'
+      script: |
+        cd \$(WorkingDir)
+        export DOCKER_BUILDKIT=1
+        
+        if [ -f \$(WorkingDir)/nuget.config ]
+        then
+          docker build \
+            --build-arg NUGET_PAT=\$(NUGET_FEED_PAT) \
+            --tag \$(IMAGE_NAME):pr-\$(System.PullRequest.PullRequestNumber) \
+            -f Dockerfile \
+            .
+        else
+          docker build \
+            --tag \$(IMAGE_NAME):pr-\$(System.PullRequest.PullRequestNumber) \
+            -f Dockerfile \
+            .
+        fi

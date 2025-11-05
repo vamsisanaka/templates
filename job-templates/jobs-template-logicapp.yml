@@ -1,0 +1,102 @@
+# Complete Logic App Pipeline Template
+# Includes: Validation, Build, Package, Publish stages
+
+parameters:
+  - name: workingDirectory
+    type: string
+  - name: projectFile
+    type: string
+  - name: artifactName
+    type: string
+    default: 'logicapp'
+  - name: buildConfiguration
+    type: string
+    default: 'Debug'
+  - name: agentPool
+    type: string
+    default: 'ubuntu-latest'
+
+jobs:
+  - job: LogicAppBuild
+    displayName: 'Logic App Build'
+    pool:
+      vmImage: ${{ parameters.agentPool }}
+   
+    steps:
+      # Validate and Replace parameter and connection files
+      - task: Bash@3
+        displayName: 'Replace parameter and connection files'
+        inputs:
+          targetType: 'inline'
+          script: |
+            if [ -d $(Build.ArtifactStagingDirectory)/logicapp ]; then
+              rm -rf $(Build.ArtifactStagingDirectory)/logicapp
+            fi
+           
+            mkdir -p $(Build.ArtifactStagingDirectory)/logicapp
+           
+            # Copy release configuration files to working directory
+            mv ${{ parameters.workingDirectory }}/release/connections-deploy.json ${{ parameters.workingDirectory }}/connections.json
+            mv ${{ parameters.workingDirectory }}/release/parameters-deploy.json ${{ parameters.workingDirectory }}/parameters.json
+           
+            # Validate appsettings.txt exists
+            if [ -f ${{ parameters.workingDirectory }}/release/appsettings.txt ]; then
+              mv ${{ parameters.workingDirectory }}/release/appsettings.txt $(Build.ArtifactStagingDirectory)/appsettings.txt
+            else
+              echo "${{ parameters.workingDirectory }}/release/appsettings.txt not exist. Please provide the valid path"
+              exit 1
+            fi
+
+      # DotNet Publish
+      - task: DotNetCoreCLI@2
+        displayName: 'dotnet publish'
+        inputs:
+          command: 'publish'
+          publishWebProjects: false
+          projects: '${{ parameters.workingDirectory }}/${{ parameters.projectFile }}'
+          arguments: '-c ${{ parameters.buildConfiguration }} -o $(Build.ArtifactStagingDirectory)/logicapp'
+          zipAfterPublish: false
+          modifyOutputPath: false
+          workingDirectory: '${{ parameters.workingDirectory }}'
+
+      # Copy Files to Staging Directory
+      - task: CopyFiles@2
+        displayName: 'Copy Build Artifacts To Staging Directory'
+        inputs:
+          SourceFolder: '${{ parameters.workingDirectory }}'
+          Contents: |
+            **/workflow.json
+            connections.json
+            host.json
+            parameters.json
+          TargetFolder: '$(Build.ArtifactStagingDirectory)/logicapp'
+          OverWrite: true
+
+      # Archive Files
+      - task: ArchiveFiles@2
+        displayName: 'Archive Build Artifacts'
+        inputs:
+          rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/logicapp'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/logicapp.zip'
+          replaceExistingArchive: true
+
+      # Remove logicapp build dir after Archive
+      - task: Bash@3
+        displayName: 'Remove logicapp build dir after Archive'
+        inputs:
+          targetType: 'inline'
+          script: |
+            if [ -d $(Build.ArtifactStagingDirectory)/logicapp ]; then
+              rm -rf $(Build.ArtifactStagingDirectory)/logicapp
+            fi
+
+      # Publish Build Artifacts
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Build Artifacts'
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)/logicapp.zip'
+          ArtifactName: '${{ parameters.artifactName }}'
+          publishLocation: 'Container'
